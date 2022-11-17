@@ -1,1 +1,3 @@
-# solana_dapp
+# React Solana Template
+
+React + Solana = DApp
