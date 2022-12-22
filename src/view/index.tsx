@@ -8,7 +8,12 @@ import './index.less'
 import { WalletMultiButton } from '@solana/wallet-adapter-react-ui';
 import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { SystemProgram, Keypair, Transaction } from '@solana/web3.js';
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react';
+import WalletInfo from "./components/walletInfo";
+import Splt from "./components/splt";
+import { AppDispatch } from "store";
+import { setWalletInfo } from "store/wallet.reducer";
+import { useDispatch } from "react-redux";
 
 type NotificationType = 'success' | 'info' | 'warning' | 'error';
 const noti = (type: NotificationType, message: String, desc: String) => {
@@ -20,7 +25,7 @@ const noti = (type: NotificationType, message: String, desc: String) => {
 
 function View() {
   const { connection } = useConnection();  // lấy được obj connection từ cái ConnectionProvider bao ở bên ngoài
-  const [balance, setBalance] = useState(0);
+  const dispatch = useDispatch<AppDispatch>();
   const [loading, setLoading] = useState('');
 
   const { publicKey, sendTransaction } = useWallet(); // lấy publicKey của wallet đang kết nối
@@ -28,12 +33,12 @@ function View() {
     try {
       if (publicKey) {
         let lamport = await connection.getBalance(publicKey); // check nếu có publicKey mới getBalance
-        setBalance(lamport);
+        dispatch(setWalletInfo({walletAddress: publicKey.toString(), balance: lamport}));
       }
     } catch (err) {
       console.log(err);
     }
-  }, [connection, publicKey])
+  }, [connection, dispatch, publicKey])
 
   const airdrop = useCallback(async () => {
     try {
@@ -68,19 +73,19 @@ function View() {
     try {
       setLoading('transfer');
       if (publicKey) {
-        const toPubkey = Keypair.generate().publicKey;
-        const instruction = SystemProgram.transfer({
-          fromPubkey: publicKey,
-          toPubkey,
-          lamports: 10 ** 8,
+        const toPubkey = Keypair.generate().publicKey; // gen ra 1 random pubkey
+        const instruction = SystemProgram.transfer({ // tạo instruction
+          fromPubkey: publicKey, // người gửi
+          toPubkey, // người nhận
+          lamports: 10 ** 8, // số lượng gửi tính theo lamport
         });
-        const transaction = new Transaction().add(instruction);
+        const transaction = new Transaction().add(instruction); //khởi tạo một transaction mới 
         const {
           context: { slot: minContextSlot },
           value: { blockhash, lastValidBlockHeight }
-        } = await connection.getLatestBlockhashAndContext();
-        const signature = await sendTransaction(transaction, connection, { minContextSlot });
-        await connection.confirmTransaction({ blockhash, lastValidBlockHeight, signature });
+        } = await connection.getLatestBlockhashAndContext(); // định nghĩa duration cho cái transaction này đảm bảo transaction waiting trong 1 time nhất định
+        const signature = await sendTransaction(transaction, connection, { minContextSlot }); // làm 2 nhiệm vụ: dùng ví hiện tại ký trans,  gửi trans lên toàn network
+        await connection.confirmTransaction({ blockhash, lastValidBlockHeight, signature }); // confirm trans success
         fetchBalance();
         noti(
           'success',
@@ -98,7 +103,7 @@ function View() {
     } finally {
       setLoading('');
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connection, publicKey, fetchBalance]);
   return (
     <Layout className="container">
@@ -126,12 +131,15 @@ function View() {
                 <IonIcon name="rocket" />
               </Space>
             </Typography.Text>
-            <Typography.Title level={3}>My Balance: {balance / 10 ** 9} SOL</Typography.Title>
+            <WalletInfo />
             <Space>
               <Button type='primary' size='large' onClick={airdrop} loading={loading === 'airdrop'}>Airdrop</Button>
               <Button type='primary' size='large' onClick={transfer} loading={loading === 'transfer'}>Transfer</Button>
             </Space>
           </Space>
+        </Col>
+        <Col span={24}>
+          <Splt/>
         </Col>
       </Row>
     </Layout>
